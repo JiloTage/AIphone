@@ -23,7 +23,7 @@
 
 ## 現在の状態と検証範囲
 
-実際の公開URL、アカウント情報、本番固有のリソース名はGitに保存しません。ローカル検証は `evidence/verification.json` を参照してください。
+ローカル検証は `evidence/verification.json` を参照してください。
 
 `evidence/` はローカルの検証記録です。端末のパス、画面、テスト時の会話内容が含まれるため、Gitには含めません。クローン直後には存在せず、`node scripts/verify.mjs` でローカル検証記録を生成できます。
 
