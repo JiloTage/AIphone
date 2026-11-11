@@ -9,7 +9,7 @@
      │                              │                 gpt-6-luna / effort=none
      ├── PCM 24kHz / WebSocket ──────┼── OpenAI Realtime transcription
      │                              │   gpt-live-transcribe / delay=minimal
-     └── 音声 / WebSocket ───────────┴── Modal (L4 GPU)
+     └── 音声 / WebSocket ───────────┴── Modal (L4 / L40S GPU)
                                          speech.cpp v0.10.1
                                          Irodori-TTS v4.1 Small MF
 ```
@@ -23,11 +23,11 @@
 
 ## 現在の状態と検証範囲
 
-Cloudflareの公開状態とURLは `evidence/deployment.json`、ローカル検証は `evidence/verification.json`、要件と実装・未確認事項の対応は `evidence/implementation.md` を参照してください。
+公開先は [AIphone](https://deployment.example) です。2026-11-11にModal・OpenAI・Cloudflareの接続情報を設定しました。セットアップの実行記録は `evidence/setup-20261111.md`、ローカル検証は `evidence/verification.json`、当初の要件と実装の対応は `evidence/implementation.md` を参照してください。
 
 `evidence/` はローカルの検証記録です。端末のパス、画面、テスト時の会話内容が含まれるため、Gitには含めません。クローン直後には存在せず、`node scripts/verify.mjs` でローカル検証記録を生成できます。
 
-OpenAIキーとModalアカウントは未設定のため、実モデルの音声、応答速度、コールドスタート、長時間通話はまだ実測していません。画面の「設定待ち」はその状態を表します。
+実サービスで、Irodoriの日本語合成音声を文字起こしへ送り、Lunaの返答を再び音声にする往復を確認しました。`gpt-6-luna` / `reasoning.effort: "none"` を実応答で確認し、同じ音声・文字起こし接続を140秒間維持してからの合成も確認しています。これは合成音声を入力したAPI検証です。実マイク、スピーカーでの聴感、発話割り込み、数時間の通話は未確認です。測定中には音声受信が数十秒遅れる試行もあり、安定した低遅延を保証する結果ではありません。
 
 ## 初回セットアップ（PowerShell）
 
@@ -36,6 +36,7 @@ OpenAIキーとModalアカウントは未設定のため、実モデルの音声
 ```powershell
 npm ci
 uv sync --locked
+$env:PYTHONIOENCODING = "utf-8"
 ```
 
 ### 1. Modalにログインし、内部トークンを登録
@@ -68,7 +69,7 @@ uv run modal deploy backend/modal_app.py
 
 初回はspeech.cppのCUDAビルドとモデルの取得があります。CUDAバイナリーでモデルを取得するビルド工程にもL4を使います。完了時に表示される `VoiceServer.web` の `https://…modal.run` URLを控えます。モデルはイメージに含まれ、通話のたびにダウンロードしません。
 
-通常は0コンテナー、最大1コンテナー、L4 GPU、4 CPU、8GiB RAMです。同じGPUで合成を一件ずつ処理し、WebSocket等の入力は最大16件です。複数の通話が重なると合成待ちが発生します。
+通常は0コンテナー、最大1コンテナー、CPU要求1コア・上限4コア、8GiB RAMです。GPUはL4を優先し、空きがなければL40Sを使用します。初回セットアップでL4の割り当て待ちが続いたため、この代替GPUを追加しました。L40SはL4よりGPU単価が高いので、運用費用は [Modalの料金](https://modal.com/pricing) と実際の割り当てを確認してください。同じGPUで合成を一件ずつ処理し、WebSocket等の入力は最大16件です。複数の通話が重なると合成待ちが発生します。
 
 ### 3. Cloudflareに接続情報を登録
 
@@ -96,7 +97,7 @@ npm run deploy
 5. ネットワークを一時的に切断したあと、会話履歴を保って再接続すること。
 6. 終話後にマイク表示が消え、別セッションの会話と混ざらないこと。
 
-これらは接続後に必要な実機確認であり、この作業で通過済みとは扱っていません。
+上記は利用する端末で必要な実機確認です。APIの往復・140秒間の接続維持は確認済みですが、この手順全体をブラウザーと実マイクで通過したとは扱っていません。
 
 ## プロンプトと設定の編集
 
@@ -150,7 +151,7 @@ node tests/browser-server.mjs
 
 ログインなしのURLから有料APIを利用できるため、URLを知る第三者も利用でき、費用が発生します。同一オリジン検査はログイン認証の代わりにはなりません。会話中と終話後のscale-down待機中はModalのリソース費用がかかります。
 
-speech.cppはv0.10.1のコミットに固定しています。上流はCUDAのビルドに対応していますが、CUDAバックエンドの出力検証は未実施と記載しています。本構成もModal GPU上でのビルド・音声品質をまだ確認していません。
+speech.cppはv0.10.1のコミットに固定しています。本構成ではModal上でCUDAビルドとL40Sでの日本語PCM生成を確認しました。生成音声から実際に日本語を文字起こしできましたが、声質や発音の聴感評価は未実施です。
 
 ## 参照した一次資料
 

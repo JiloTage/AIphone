@@ -8,7 +8,7 @@ from pathlib import Path
 
 import modal
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[1] if modal.is_local() else Path("/app")
 SPEECH_REV = "03555100287c118b41d1b475044e5ab1e07baa8c"  # speech.cpp v0.10.1
 VOICE = json.loads((ROOT / "config/voice.json").read_text(encoding="utf-8"))
 
@@ -24,6 +24,7 @@ image = (
         "-DGGML_CUDA=ON -DGGML_NATIVE=OFF -DCMAKE_CUDA_ARCHITECTURES=89",
         "cmake --build /opt/speech/build --target speech -j 4",
     )
+    .run_commands("cmake --build /opt/speech/build --target speech-cli -j 4")
     .env({"SPEECH_MODEL_DIR": "/opt/models", "SPEECH_NO_UPDATE_CHECK": "1"})
     .run_commands(f"/opt/speech/build/speech pull {VOICE['model']}", gpu="L4")
     .add_local_dir(ROOT / "backend", "/app/backend", ignore=["__pycache__", "*.pyc"])
@@ -35,7 +36,7 @@ app = modal.App("voice-chat-example", image=image)
 
 
 @app.cls(
-    gpu="L4", cpu=4, memory=8192,
+    gpu=["L4", "L40S"], cpu=(1, 4), memory=8192,
     min_containers=0, max_containers=1, scaledown_window=120,
     timeout=86400,
     secrets=[modal.Secret.from_name("voice-chat-example")],
