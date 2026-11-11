@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PCMEncoder, VoiceActivity, pcmBase64 } from '../public/lib/audio-codec.js';
-import { takeSentences, readSSE } from '../public/lib/stream.js';
+import { readSSE } from '../public/lib/stream.js';
 import { conversationInput, readSessions, writeSessions } from '../public/lib/store.js';
 import { VoiceCall } from '../public/lib/call.js';
 
@@ -12,15 +12,6 @@ test('streaming SSE preserves Japanese split across arbitrary UTF-8 boundaries',
   const events = [];
   for await (const event of readSSE(stream)) events.push(event);
   assert.deepEqual(events, [{ type: 'response.output_text.delta', delta: 'もしもし。' }, { type: 'response.completed' }]);
-});
-
-test('speech sentence queue emits early and retains unfinished text', () => {
-  assert.deepEqual(takeSentences('こんにちは。今日は'), { chunks: ['こんにちは。'], rest: '今日は' });
-  assert.deepEqual(takeSentences('今日は', true), { chunks: ['今日は'], rest: '' });
-  const input = 'あ'.repeat(160);
-  const chunks = takeSentences(input, true).chunks;
-  assert.equal(chunks.join(''), input);
-  assert.ok(chunks.every(chunk => chunk.length <= 70));
 });
 
 for (const rate of [24000, 44100, 48000]) test(`PCM capture resamples ${rate} Hz to 24 kHz across worklet frames`, () => {
@@ -138,11 +129,4 @@ test('mute stops microphone tracks and clears unfinished transcription', () => {
   assert.equal(track.enabled, false);
   assert.equal(call.vad.active, false);
   assert.deepEqual(sent, [{ type: 'input_audio_buffer.clear' }]);
-});
-
-test('sentence boundaries preserve emoji surrogate pairs', () => {
-  const input = 'あ'.repeat(69) + '😊' + '次の文。';
-  const chunks = takeSentences(input, true).chunks;
-  assert.equal(chunks.join(''), input);
-  assert.ok(chunks.every(chunk => !/[\uD800-\uDBFF]$/.test(chunk)));
 });

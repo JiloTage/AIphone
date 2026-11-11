@@ -18,23 +18,3 @@ export async function* readSSE(body) {
     }
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
-
-export function takeSentences(text, flush = false) {
-  const chunks = [];
-  let rest = text;
-  while (rest.length) {
-    const end = /[。！？!?\n]/.exec(rest);
-    let length = end ? end.index + 1 : 0;
-    if (!length || length > 70) {
-      if (rest.length < 70 && !flush) break;
-      const cap = Math.min(70, rest.length);
-      const comma = Math.max(rest.lastIndexOf('、', cap - 1), rest.lastIndexOf(' ', cap - 1));
-      length = comma >= 20 ? comma + 1 : cap;
-    }
-    if (/[\uD800-\uDBFF]/.test(rest[length - 1]) && length < rest.length) length++;
-    const sentence = rest.slice(0, length).trim();
-    if (sentence) chunks.push(sentence);
-    rest = rest.slice(length);
-  }
-  return { chunks, rest };
-}

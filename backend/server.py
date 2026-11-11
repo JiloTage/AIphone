@@ -11,11 +11,11 @@ from fastapi.responses import JSONResponse
 
 
 def speech_payload(text: str, voice: dict, instructions: str) -> dict:
-    if not isinstance(text, str) or not text.strip() or len(text) > 200:
-        raise ValueError("Speech text must contain 1 to 200 characters")
+    if not isinstance(text, str) or not text.strip() or len(text) > 4000:
+        raise ValueError("Speech text must contain 1 to 4000 characters")
     # The catalog alias is not the HTTP model id; the server already holds exactly one TTS model.
     options = {key: value for key, value in voice.items() if key != "model"}
-    return {**options, "input": text.strip(), "instructions": instructions.strip(), "response_format": "pcm"}
+    return {**options, "input": text.strip(), "instructions": instructions.strip(), "response_format": "pcm", "stream_format": "audio"}
 
 
 def create_app(token: str, voice: dict, instructions: str, transport=None) -> FastAPI:
@@ -66,7 +66,7 @@ def create_app(token: str, voice: dict, instructions: str, transport=None) -> Fa
                                 raise ValueError("Unexpected sample rate")
                             await ws.send_json({"type": "audio.start", "id": item["id"], "sample_rate": rate})
                             carry = b""
-                            async for data in response.aiter_bytes(chunk_size=9600):
+                            async for data in response.aiter_bytes():
                                 data = carry + data
                                 aligned = len(data) - len(data) % 2
                                 if aligned:
@@ -85,7 +85,7 @@ def create_app(token: str, voice: dict, instructions: str, transport=None) -> Fa
         try:
             while True:
                 raw = await asyncio.wait_for(ws.receive_text(), timeout=90)
-                if len(raw) > 4096:
+                if len(raw) > 64_000:
                     await ws.close(code=1008)
                     break
                 data = json.loads(raw)

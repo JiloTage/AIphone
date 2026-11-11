@@ -1,5 +1,5 @@
 import { readSessions, writeSessions, newSession, conversationInput } from './lib/store.js';
-import { readSSE, takeSentences } from './lib/stream.js';
+import { readSSE } from './lib/stream.js';
 import { VoiceCall } from './lib/call.js';
 
 const $ = id => document.getElementById(id);
@@ -104,7 +104,7 @@ async function sendMessage(text) {
   pending = task;
   save(); render(); scrollDown();
   call?.thinking(true);
-  let speechBuffer = '', finished = false;
+  let finished = false;
   try {
     const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: input }), signal: task.abort.signal });
     if (!response.ok) throw new Error((await response.json()).error || '応答を取得できませんでした。');
@@ -112,23 +112,18 @@ async function sendMessage(text) {
       if (pending !== task) break;
       if (event.type === 'response.output_text.delta') {
         message.content += event.delta;
-        speechBuffer += event.delta;
-        const parsed = takeSentences(speechBuffer);
-        speechBuffer = parsed.rest;
-        if (task.voice === call) for (const sentence of parsed.chunks) call?.speak(sentence);
         const node = $('messages').querySelector(`[data-id="${message.id}"] .message-text`);
         if (node) node.textContent = message.content;
         scrollDown();
       } else if (event.type === 'response.refusal.delta') {
         message.content += event.delta;
-        speechBuffer += event.delta;
       } else if (event.type === 'response.completed') finished = true;
       else if (event.type === 'response.failed' || event.type === 'error') throw new Error('AIの応答中にエラーが発生しました。');
       else if (event.type === 'response.incomplete') throw new Error('応答が途中で終了しました。続きはもう一度話しかけてください。');
     }
     if (pending === task) {
       if (!finished) throw new Error('応答中に接続が途切れました。');
-      if (task.voice === call) for (const sentence of takeSentences(speechBuffer, true).chunks) call?.speak(sentence);
+      if (task.voice === call) call?.speak(message.content);
     }
   } catch (error) {
     if (error.name !== 'AbortError') { message.state = error.message; if (pending === task) notice(error.message, true); }
