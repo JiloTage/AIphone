@@ -42,7 +42,7 @@ voice_data = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True, version
 
 @app.cls(
     gpu="T4", cpu=(1, 4), memory=8192,
-    min_containers=0, max_containers=1, scaledown_window=120,
+    min_containers=0, max_containers=1, scaledown_window=30,
     timeout=86400,
     secrets=[modal.Secret.from_name(SECRET_NAME)],
     volumes={"/data": voice_data},
