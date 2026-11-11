@@ -23,7 +23,7 @@
 
 ## 現在の状態と検証範囲
 
-公開先は [AIphone](https://deployment.example) です。2026-11-11にModal・OpenAI・Cloudflareの接続情報を設定し、GPUをT4へ変更しました。セットアップの実行記録は `evidence/setup-20261111.md`、T4への変更記録は `evidence/t4-20261111.md`、ローカル検証は `evidence/verification.json`、当初の要件と実装の対応は `evidence/implementation.md` を参照してください。
+実際の公開URL、アカウント情報、本番固有のリソース名はGitに保存しません。ローカル検証は `evidence/verification.json` を参照してください。
 
 `evidence/` はローカルの検証記録です。端末のパス、画面、テスト時の会話内容が含まれるため、Gitには含めません。クローン直後には存在せず、`node scripts/verify.mjs` でローカル検証記録を生成できます。
 
@@ -37,7 +37,11 @@
 npm ci
 uv sync --locked
 $env:PYTHONIOENCODING = "utf-8"
+Copy-Item wrangler.jsonc wrangler.local.jsonc
+Copy-Item .env.deploy.example .env.deploy
 ```
+
+`wrangler.local.jsonc` の `name` と、`.env.deploy` のModalアプリ・Secret・Volume名を、自分の環境に合わせて設定します。この2ファイルはGit対象外です。既存環境では作成済みのファイルを上書きせず、そのまま使ってください。リポジトリー内の名前は設定例で、本番の識別情報ではありません。
 
 ### 1. Modalにログインし、内部トークンを登録
 
@@ -55,7 +59,7 @@ uv run python -c "import secrets; print(secrets.token_urlsafe(32))"
 
 | 項目 | 値 |
 | --- | --- |
-| Secret名 | `voice-chat-example` |
+| Secret名 | `.env.deploy` の `MODAL_SECRET_NAME` と同じ名前 |
 | 環境変数名 | `MODAL_API_TOKEN` |
 | 値 | 今作った内部トークン |
 
@@ -64,7 +68,7 @@ OpenAIのAPIキーはModalには登録しません。
 ### 2. 音声APIをModalへデプロイ
 
 ```powershell
-uv run modal deploy backend/modal_app.py
+npm run deploy:voice
 ```
 
 初回はspeech.cppのCUDAビルドとモデルの取得があります。T4に対応するCUDAアーキテクチャ7.5でビルドし、CUDAバイナリーでモデルを取得する工程にもT4を使います。完了時に表示される `VoiceServer.web` の `https://…modal.run` URLを控えます。モデルはイメージに含まれ、通話のたびにダウンロードしません。
@@ -78,9 +82,9 @@ Cloudflareの認証が必要な環境では最初に `npx wrangler login` を実
 [OpenAI Platform](https://platform.openai.com/api-keys)でAPIキーを用意し、次を順に実行します。値は各コマンドの非表示プロンプトへ入力します。
 
 ```powershell
-npx wrangler secret put OPENAI_API_KEY
-npx wrangler secret put MODAL_API_URL
-npx wrangler secret put MODAL_API_TOKEN
+npx wrangler secret put OPENAI_API_KEY --config wrangler.local.jsonc
+npx wrangler secret put MODAL_API_URL --config wrangler.local.jsonc
+npx wrangler secret put MODAL_API_TOKEN --config wrangler.local.jsonc
 npm run deploy
 ```
 
@@ -105,9 +109,9 @@ npm run deploy
 | --- | --- | --- |
 | 会話の性格・口調・返答の長さ | `prompts/system.txt` | `npm run deploy` |
 | 文字起こしの文脈や固有名詞 | `prompts/transcription.txt` | `npm run deploy` |
-| 声質・読み方の指示 | `prompts/voice.txt` | `uv run modal deploy backend/modal_app.py` |
+| 声質・読み方の指示 | `prompts/voice.txt` | `npm run deploy:voice` |
 | LLM、reasoning、文字起こし遅延 | `config/models.json` | `npm run deploy` |
-| Irodoriモデル、声、速度、seed | `config/voice.json` | `uv run modal deploy backend/modal_app.py` |
+| Irodoriモデル、声、速度、seed | `config/voice.json` | `npm run deploy:voice` |
 
 Lunaは公式仕様で `none` に対応しているので、`none` を設定しています。別モデルへの自動切り替えはありません。`gpt-live-transcribe` の `minimal` はライブ音声の最小遅延設定です。他モデルとの実測比較による「最速」の保証はありません。
 
@@ -115,7 +119,7 @@ Lunaは公式仕様で `none` に対応しているので、`none` を設定し�
 
 参照音声は設定画面から名前を付けて登録・選択・再生・削除できます。ブラウザーが読み込めるWAV/MP3等を24 kHz・モノラルPCM16 WAVに変換してアップロードします。元ファイル25 MB以下、0.5〜120秒、登録32件までです。登録後に声を選んで設定を保存してください。参照なしでは、同じ指示・seedでも文ごとに声質が変わることがあります。
 
-設定と登録した参照音声はModal Volume `voice-chat-data-example` の `/data` に永続保存します。別のブラウザー・端末でも共通で、再デプロイやコールドスタート後も保持します。変更はリビジョンを照合し、別の画面の更新を古い設定で上書きしません。現構成は `max_containers=1` で単一の書き込み元を想定します。複数コンテナーへ増やす場合は、保存処理の排他制御を変更してください。
+設定と登録した参照音声は、`.env.deploy` の `MODAL_VOLUME_NAME` で指定したModal Volumeの `/data` に永続保存します。別のブラウザー・端末でも共通で、再デプロイやコールドスタート後も保持します。変更はリビジョンを照合し、別の画面の更新を古い設定で上書きしません。現構成は `max_containers=1` で単一の書き込み元を想定します。複数コンテナーへ増やす場合は、保存処理の排他制御を変更してください。
 
 音声APIには `response_format: "pcm"`, `stream_format: "audio"` を指定しています。アプリ側で70文字に分割する処理はありません。speech.cpp v0.10.1のIrodori処理は全文を内部で分割し、文間には標準で0.9秒の間を入れます。音声の出力はストリームですが、読み上げの開始はLunaの返答が完成してからです。APIの入力上限は一回4000文字です。
 

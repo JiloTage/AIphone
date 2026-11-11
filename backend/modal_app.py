@@ -1,4 +1,4 @@
-"""Deploy with: uv run modal deploy backend/modal_app.py"""
+"""Deploy with: npm run deploy:voice"""
 
 import json
 import os
@@ -11,6 +11,9 @@ import modal
 ROOT = Path(__file__).resolve().parents[1] if modal.is_local() else Path("/app")
 SPEECH_REV = "03555100287c118b41d1b475044e5ab1e07baa8c"  # speech.cpp v0.10.1
 VOICE = json.loads((ROOT / "config/voice.json").read_text(encoding="utf-8"))
+APP_NAME = os.environ.get("MODAL_APP_NAME", "voice-chat-example")
+SECRET_NAME = os.environ.get("MODAL_SECRET_NAME", "voice-chat-secret-example")
+VOLUME_NAME = os.environ.get("MODAL_VOLUME_NAME", "voice-chat-data-example")
 
 image = (
     modal.Image.from_registry("nvidia/cuda:12.8.1-devel-ubuntu24.04", add_python="3.11")
@@ -25,22 +28,23 @@ image = (
         "cmake --build /opt/speech/build --target speech -j 4",
     )
     .run_commands("cmake --build /opt/speech/build --target speech-cli -j 4")
-    .env({"SPEECH_MODEL_DIR": "/opt/models", "SPEECH_NO_UPDATE_CHECK": "1"})
+    .env({"SPEECH_MODEL_DIR": "/opt/models", "SPEECH_NO_UPDATE_CHECK": "1",
+          "MODAL_APP_NAME": APP_NAME, "MODAL_SECRET_NAME": SECRET_NAME, "MODAL_VOLUME_NAME": VOLUME_NAME})
     .run_commands(f"/opt/speech/build/speech pull {VOICE['model']}", gpu="T4")
     .add_local_dir(ROOT / "backend", "/app/backend", ignore=["__pycache__", "*.pyc"])
     .add_local_dir(ROOT / "config", "/app/config")
     .add_local_dir(ROOT / "prompts", "/app/prompts")
 )
 
-app = modal.App("voice-chat-example", image=image)
-voice_data = modal.Volume.from_name("voice-chat-data-example", create_if_missing=True, version=2)
+app = modal.App(APP_NAME, image=image)
+voice_data = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True, version=2)
 
 
 @app.cls(
     gpu="T4", cpu=(1, 4), memory=8192,
     min_containers=0, max_containers=1, scaledown_window=120,
     timeout=86400,
-    secrets=[modal.Secret.from_name("voice-chat-example")],
+    secrets=[modal.Secret.from_name(SECRET_NAME)],
     volumes={"/data": voice_data},
 )
 @modal.concurrent(max_inputs=16)

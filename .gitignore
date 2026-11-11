@@ -8,6 +8,8 @@ dist/
 .env
 .env.*
 !.env.example
+!.env.deploy.example
+wrangler.local.jsonc
 __pycache__/
 *.pyc
 backend/voices/*
