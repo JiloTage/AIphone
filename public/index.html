@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#f8f7f4">
+  <meta name="description" content="AIと、電話するように。声とテキストで会話できるAIphone。">
+  <title>AIphone — 声で、話そう。</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <button id="sidebar-backdrop" class="backdrop" aria-label="サイドバーを閉じる" hidden></button>
+  <aside id="sidebar" class="sidebar" aria-label="会話の履歴">
+    <a class="brand" href="/" aria-label="AIphone ホーム"><span class="brand-mark" aria-hidden="true">a<span>i</span></span><span>AIphone<span class="brand-dot">.</span></span></a>
+    <button id="new-chat" class="new-chat"><span aria-hidden="true">＋</span> 新しい会話 <kbd>⌘ K</kbd></button>
+    <div class="sidebar-label">YOUR CONVERSATIONS</div>
+    <nav id="session-list" class="session-list" aria-label="セッション"></nav>
+    <div id="sidebar-empty" class="sidebar-empty">ここに会話が並びます。<br>話したことを、いつでも続きを。</div>
+    <div class="sidebar-footer"><span class="local-dot"></span><div>このブラウザーに保存<small>あなたの会話は、この端末に。</small></div></div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-left"><button id="menu-toggle" class="icon-button menu-toggle" aria-label="会話一覧を開く" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><span id="chat-title">新しい会話</span><span class="title-divider">/</span><span class="topbar-subtitle">声で、話そう。</span></div>
+      <span id="connection-badge" class="connection-badge"><span></span><span id="connection-label">接続を確認中</span></span>
+    </header>
+
+    <div id="notice" class="notice" role="status" hidden></div>
+    <section id="conversation" class="conversation" aria-label="会話">
+      <div id="welcome" class="welcome">
+        <div class="eyebrow"><span></span> A LITTLE SPACE TO TALK</div>
+        <div class="voice-art" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="voice-core"><div class="wave-bars"><i></i><i></i><i></i><i></i><i></i></div></div><span class="orbit-dot"></span></div>
+        <h1>思いついたら、<br><span>そのまま話そう。</span></h1>
+        <p>考えごとでも、今日あったことでも。<br>電話をかけるように、AIと会話を。</p>
+        <button id="welcome-call" class="primary-call"><svg viewBox="0 0 24 24"><path d="m8 3 3 5-2 2c1.2 2.4 2.6 3.8 5 5l2-2 5 3c0 3-2 5-4 5C9 20 4 15 3 7c0-2 2-4 5-4Z"/></svg>通話をはじめる<span aria-hidden="true">↗</span></button>
+        <span class="welcome-note">マイクをオンにして、お話しください</span>
+        <div class="starter-row" aria-label="会話のきっかけ"><button data-starter="今日あったことを聞いてほしい。">今日のことを話す <span>↗</span></button><button data-starter="考えを整理するのを手伝って。">考えを整理する <span>↗</span></button><button data-starter="少し雑談しよう。">ちょっと雑談 <span>↗</span></button></div>
+      </div>
+      <div id="messages" class="messages" role="log" aria-live="polite" aria-relevant="additions"></div>
+      <div id="live-transcript" class="live-transcript" role="status" hidden></div>
+    </section>
+
+    <section id="call-panel" class="call-panel" aria-label="通話" hidden>
+      <div class="call-visual"><span></span><span></span><span></span><span></span><span></span></div>
+      <div class="call-info"><strong id="call-status">呼び出しています…</strong><span id="call-detail">相手の応答を待っています</span></div>
+      <span id="call-time" class="call-time">00:00</span>
+      <button id="mute" class="icon-button mute-button" aria-label="マイクをミュート" aria-pressed="false"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8"/></svg></button>
+      <button id="hangup" class="hangup" aria-label="通話を終了"><svg viewBox="0 0 24 24"><path d="M3 15c0-8 18-8 18 0l-4 2-2-4H9l-2 4Z"/></svg></button>
+    </section>
+
+    <div class="composer-area">
+      <form id="composer" class="composer">
+        <label class="sr-only" for="message-input">メッセージ</label>
+        <textarea id="message-input" rows="1" maxlength="4000" placeholder="文字で話しかけても、大丈夫。"></textarea>
+        <div class="composer-actions"><button id="call-toggle" type="button" class="icon-button" aria-label="通話をはじめる" title="通話をはじめる"><svg viewBox="0 0 24 24"><path d="m8 3 3 5-2 2c1.2 2.4 2.6 3.8 5 5l2-2 5 3c0 3-2 5-4 5C9 20 4 15 3 7c0-2 2-4 5-4Z"/></svg></button><span class="composer-divider"></span><button id="send" type="submit" class="send-button" aria-label="送信"><svg viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button><button id="stop" type="button" class="send-button" aria-label="応答を停止" hidden>■</button></div>
+      </form>
+      <div class="composer-footer"><span>AIとの会話です。回答には誤りが含まれることがあります。</span><span class="footer-wordmark">AIphone</span></div>
+    </div>
+  </main>
+  <template id="message-template"><article class="message"><div class="message-avatar" aria-hidden="true"></div><div class="message-body"><div class="message-meta"></div><div class="message-text"></div><div class="message-state"></div></div></article></template>
+</body>
+</html>

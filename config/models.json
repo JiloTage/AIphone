@@ -1,0 +1,12 @@
+{
+  "chat": {
+    "model": "gpt-6-luna",
+    "reasoning": { "effort": "none" },
+    "max_output_tokens": 512
+  },
+  "transcription": {
+    "model": "gpt-live-transcribe",
+    "delay": "minimal",
+    "languages": ["ja"]
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "model": "irodori-tts-mf",
+  "voice": "none",
+  "steps": 4,
+  "seed": 42,
+  "speed": 1.0
+}
