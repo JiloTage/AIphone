@@ -37,6 +37,7 @@ export class VoiceCall {
       this.startedAt = Date.now();
       this.becomeReady();
       this.clock = setInterval(() => this.tick(), 1000);
+      this.callbacks.greeting();
     } catch (error) {
       this.stop();
       if (error.name === 'NotAllowedError') throw new Error('マイクの使用が許可されていません。ブラウザーの設定でマイクを許可してください。');

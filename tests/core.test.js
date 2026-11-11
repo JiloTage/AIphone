@@ -4,6 +4,44 @@ import { PCMEncoder, VoiceActivity, pcmBase64 } from '../public/lib/audio-codec.
 import { readSSE } from '../public/lib/stream.js';
 import { conversationInput, readSessions, writeSessions } from '../public/lib/store.js';
 import { VoiceCall } from '../public/lib/call.js';
+import { CallAudio } from '../public/lib/audio.js';
+
+for (const outcome of ['connected', 'cancelled', 'failed']) test(`call opening greeting: ${outcome}`, async t => {
+  t.mock.method(globalThis, 'setInterval', () => 1);
+  t.mock.method(globalThis, 'clearInterval', () => {});
+  for (const [object, key, value] of [
+    [globalThis, 'AudioContext', class {}],
+    [globalThis, 'AudioWorkletNode', class {}],
+    [navigator, 'mediaDevices', { getUserMedia() {} }],
+  ]) {
+    const original = Object.getOwnPropertyDescriptor(object, key);
+    Object.defineProperty(object, key, { configurable: true, value });
+    t.after(() => { if (original) Object.defineProperty(object, key, original); else delete object[key]; });
+  }
+  for (const method of ['resume', 'microphone', 'ring', 'stopRing', 'close']) t.mock.method(CallAudio.prototype, method, async () => {});
+  const sent = [], history = [];
+  const call = new VoiceCall({ greeting: () => history.push('generate'), state() {}, partial() {}, ended() {} });
+  t.mock.method(call, 'connect', async () => {
+    assert.equal(sent.length, 0);
+    assert.equal(history.length, 0);
+    if (outcome === 'failed') throw new Error('connection failed');
+    if (outcome === 'cancelled') call.stop();
+    call.voice = { readyState: WebSocket.OPEN, send: data => sent.push(JSON.parse(data)) };
+  });
+  if (outcome === 'failed') await assert.rejects(call.start(), /connection failed/);
+  else await call.start();
+  if (outcome === 'connected') {
+    assert.deepEqual(sent, []);
+    assert.deepEqual(history, ['generate']);
+    call.becomeReady(); // Reconnection uses this path without starting another greeting.
+    assert.equal(sent.length, 0);
+    assert.equal(history.length, 1);
+  } else {
+    assert.deepEqual(sent, []);
+    assert.deepEqual(history, []);
+  }
+  call.stop();
+});
 
 test('streaming SSE preserves Japanese split across arbitrary UTF-8 boundaries', async () => {
   const source = 'data: {"type":"response.output_text.delta","delta":"もしもし。"}\r\n\r\ndata: {"type":"response.completed"}\n\ndata: [DONE]\n\n';

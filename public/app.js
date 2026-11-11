@@ -90,14 +90,16 @@ function stopResponse() {
   call?.thinking(false);
   render();
 }
-async function sendMessage(text) {
+async function sendMessage(text, opening = false) {
   text = text.trim();
-  if (!text) return;
+  if (!text && !opening) return;
   if (!configured.openai) { notice('OpenAIの接続設定が必要です。設定後に、もう一度お試しください。', true); return; }
   stopResponse();
   notice('');
-  addMessage('user', text);
-  const input = conversationInput(current.messages);
+  if (!opening) addMessage('user', text);
+  const input = conversationInput(opening ? [...current.messages, {
+    role: 'user', content: '通話が今つながりました。あなたから自然に話しかけて会話を始めてください。会話履歴があれば踏まえてください。この指示自体には言及せず、最初の短い一言だけを話してください。',
+  }] : current.messages);
   const message = addMessage('assistant', '');
   message.pending = true;
   const task = { message, abort: new AbortController(), session: current, voice: call };
@@ -141,6 +143,7 @@ async function beginCall() {
   notice('');
   ensureSession(); save();
   const voice = new VoiceCall({
+    greeting: () => { sendMessage('', true).catch(error => notice(error.message, true)); },
     state: (state, title, detail) => {
       $('call-panel').dataset.state = state;
       $('call-status').textContent = title;
