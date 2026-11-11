@@ -18,7 +18,8 @@
     <div class="sidebar-label">YOUR CONVERSATIONS</div>
     <nav id="session-list" class="session-list" aria-label="セッション"></nav>
     <div id="sidebar-empty" class="sidebar-empty">ここに会話が並びます。<br>話したことを、いつでも続きを。</div>
-    <div class="sidebar-footer"><span class="local-dot"></span><div>このブラウザーに保存<small>あなたの会話は、この端末に。</small></div></div>
+    <button id="open-settings" class="settings-link"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg><span>声の設定<small>声・話し方・参照音声</small></span><span aria-hidden="true">↗</span></button>
+    <div class="sidebar-footer"><span class="local-dot"></span><div>会話はこのブラウザーに保存<small>声の設定はアプリ全体で共有</small></div></div>
   </aside>
 
   <main class="main">
@@ -59,6 +60,48 @@
       <div class="composer-footer"><span>AIとの会話です。回答には誤りが含まれることがあります。</span><span class="footer-wordmark">AIphone</span></div>
     </div>
   </main>
+  <dialog id="voice-settings" class="settings-dialog" aria-labelledby="settings-title">
+    <header class="settings-header"><div><span class="settings-eyebrow">VOICE SETTINGS</span><h2 id="settings-title">声を、あなた好みに。</h2></div><button id="close-settings" class="icon-button" aria-label="設定を閉じる">×</button></header>
+    <div class="settings-scroll">
+      <p class="settings-intro">話す速さや声の雰囲気を調整して、心地よい会話に。</p>
+      <div class="settings-shared"><span class="local-dot"></span><div><strong>アプリ共通の設定</strong><p>別の端末でも同じ設定を使えます。認証がないため、このサイトを開ける人は設定の変更と参照音声の利用・削除ができます。</p></div></div>
+      <p id="settings-message" class="settings-message" role="status" aria-live="polite"></p>
+      <form id="voice-settings-form">
+        <fieldset id="settings-fields" disabled>
+          <section class="settings-section"><div class="section-heading"><span>01</span><h3>声と話し方</h3><small>Irodori-TTS · Small MF</small></div>
+            <label class="field">声<select id="voice-reference" name="reference_id"><option value="">おまかせ（参照音声なし）</option></select><small>参照音声を選ぶと、その声を使って読み上げます。</small></label>
+            <div class="settings-grid">
+              <label class="field">話す速さ <span class="field-unit">speed</span><input name="speed" type="number" min="0.25" max="4" step="0.05" required><small>1が標準。0.25〜4倍。</small></label>
+              <label class="field">生成ステップ数 <span class="field-unit">steps</span><input name="steps" type="number" min="1" max="64" step="1" required><small>標準は4。増やすと生成に時間がかかります。</small></label>
+            </div>
+            <label class="field">声の雰囲気・話し方 <span class="field-unit">instructions</span><textarea name="instructions" rows="3" maxlength="1000" placeholder="例：落ち着いた声で、やわらかく自然に話してください。"></textarea><small>参照音声と組み合わせて使えます。上限はモデル側で512トークンです。</small></label>
+            <label class="field">シード <span class="field-unit">seed</span><input name="seed" type="number" min="0" max="9007199254740991" step="1" placeholder="空欄でランダム"><small>同じ設定とシードで生成の揺らぎを固定します。空欄なら毎回ランダム。</small></label>
+          </section>
+          <section class="settings-section"><div class="section-heading"><span>02</span><h3>参照音声</h3><small id="reference-count">0 / 32</small></div>
+            <p class="section-note">一人の声がはっきり入った音声を登録してください。0.5〜120秒、WAV・MP3などブラウザーが読み込める形式に対応します。</p>
+            <div id="reference-list" class="reference-list"></div>
+            <div class="reference-upload"><label class="field">登録名<input id="reference-name" type="text" maxlength="60" placeholder="例：いつもの声"></label><label class="field">音声ファイル<input id="reference-file" type="file" accept="audio/*,.wav,.mp3,.m4a,.ogg,.flac"></label><button id="register-reference" type="button" class="secondary-button">＋ 参照音声を登録</button><small>登録すると、アプリの保存先に音声をアップロードします。</small></div>
+          </section>
+          <details class="settings-section advanced-settings"><summary><span>03</span> 詳細な調整 <small>長さ・末尾の無音</small></summary>
+            <p class="section-note">通常は初期値で使えます。文と文の間はspeech.cpp標準の0.9秒で、このバージョンでは変更できません。</p>
+            <div class="settings-grid">
+              <label class="field">言語 <span class="field-unit">language</span><select name="language"><option value="auto">自動（日本語）</option><option value="ja">日本語</option></select></label>
+              <label class="field">1文の秒数を固定 <span class="field-unit">seconds</span><input name="seconds" type="number" min="0.5" max="30" step="0.1" placeholder="空欄で自動"><small>0.5〜30秒。長さの倍率との同時指定はできません。</small></label>
+              <label class="field">予測する長さの倍率 <span class="field-unit">duration_scale</span><input name="duration_scale" type="number" min="0.1" max="4" step="0.1" required><small>標準は1。0.1〜4倍。</small></label>
+            </div>
+            <label class="checkbox-field"><input name="keep_tail" type="checkbox">末尾の無音を残す <span class="field-unit">keep_tail</span></label>
+            <div id="tail-fields" class="settings-grid">
+              <label class="field">判定するフレーム数 <span class="field-unit">tail_window_size</span><input name="tail_window_size" type="number" min="1" max="750" step="1" required></label>
+              <label class="field">ばらつきのしきい値 <span class="field-unit">tail_std_threshold</span><input name="tail_std_threshold" type="number" min="1.1754943508222875e-38" max="3.4028234663852886e38" step="any" required></label>
+              <label class="field">平均のしきい値 <span class="field-unit">tail_mean_threshold</span><input name="tail_mean_threshold" type="number" min="1.1754943508222875e-38" max="3.4028234663852886e38" step="any" required></label>
+            </div>
+          </details>
+          <section class="settings-section preview-section"><label class="field">この設定で試す<textarea id="preview-text" rows="2" maxlength="200">こんにちは。今日はどんなことを話しましょうか。</textarea></label><button id="preview-voice" type="button" class="secondary-button">▷ 声を試聴する</button><button id="stop-preview" type="button" class="secondary-button" hidden>■ 試聴を止める</button><small>保存前の設定でも試せます。通話中は試聴を停止してください。</small></section>
+        </fieldset>
+      </form>
+    </div>
+    <footer class="settings-footer"><div><button id="reset-settings" type="button" class="text-button" disabled>初期値に戻す</button><button id="reload-settings" type="button" class="text-button">読み直す</button><small>保存した設定は、次の通話から反映されます。</small></div><button id="save-settings" type="submit" form="voice-settings-form" class="primary-button" disabled>設定を保存</button></footer>
+  </dialog>
   <template id="message-template"><article class="message"><div class="message-avatar" aria-hidden="true"></div><div class="message-body"><div class="message-meta"></div><div class="message-text"></div><div class="message-state"></div></div></article></template>
 </body>
 </html>

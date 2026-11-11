@@ -33,6 +33,7 @@ image = (
 )
 
 app = modal.App("voice-chat-example", image=image)
+voice_data = modal.Volume.from_name("voice-chat-data-example", create_if_missing=True, version=2)
 
 
 @app.cls(
@@ -40,6 +41,7 @@ app = modal.App("voice-chat-example", image=image)
     min_containers=0, max_containers=1, scaledown_window=120,
     timeout=86400,
     secrets=[modal.Secret.from_name("voice-chat-example")],
+    volumes={"/data": voice_data},
 )
 @modal.concurrent(max_inputs=16)
 class VoiceServer:
@@ -87,4 +89,4 @@ class VoiceServer:
         import sys
         sys.path.insert(0, "/app")
         from backend.server import create_app
-        return create_app(os.environ["MODAL_API_TOKEN"], self.voice, self.instructions)
+        return create_app(os.environ["MODAL_API_TOKEN"], self.voice, self.instructions, commit=voice_data.commit)

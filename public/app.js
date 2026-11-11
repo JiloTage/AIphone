@@ -1,6 +1,7 @@
 import { readSessions, writeSessions, newSession, conversationInput } from './lib/store.js';
 import { readSSE } from './lib/stream.js';
 import { VoiceCall } from './lib/call.js';
+import { setupVoiceSettings } from './settings.js';
 
 const $ = id => document.getElementById(id);
 const mobile = matchMedia('(max-width: 760px)');
@@ -192,6 +193,7 @@ mobile.addEventListener('change', () => sidebar(false));
 $('new-chat').onclick = () => { switchSession(newSession()); sidebar(false); $('message-input').focus(); };
 $('menu-toggle').onclick = () => sidebar(!$('sidebar').classList.contains('open'));
 $('sidebar-backdrop').onclick = () => sidebar(false);
+setupVoiceSettings(() => sidebar(false), () => Boolean(call));
 $('welcome-call').onclick = beginCall;
 $('call-toggle').onclick = beginCall;
 $('hangup').onclick = endCall;
@@ -207,6 +209,7 @@ $('message-input').oninput = () => { $('message-input').style.height = 'auto'; $
 $('message-input').onkeydown = event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('composer').requestSubmit(); } };
 for (const button of document.querySelectorAll('[data-starter]')) button.onclick = () => { $('message-input').value = button.dataset.starter; $('message-input').focus(); };
 document.addEventListener('keydown', event => {
+  if ($('voice-settings').open) return;
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); $('new-chat').click(); }
   if (event.key === 'Escape') sidebar(false);
 });

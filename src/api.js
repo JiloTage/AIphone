@@ -112,11 +112,33 @@ export async function handleRequest(request, env, settings, fetcher = fetch) {
   if (path === '/api/status' && request.method === 'GET') {
     return json({ ...configuration(env), models: { chat: settings.models.chat.model, transcription: settings.models.transcription.model } });
   }
+  const settingsPath = path === '/api/voice/settings' ? '/settings'
+    : path === '/api/voice/references' ? '/references'
+    : /^\/api\/voice\/references\/[a-f0-9]{32}$/.test(path) ? path.slice('/api/voice'.length) : null;
+  if (settingsPath) {
+    const methods = settingsPath === '/settings' ? ['GET', 'PUT'] : settingsPath === '/references' ? ['POST'] : ['GET', 'DELETE'];
+    if (!methods.includes(request.method)) return json({ error: 'Method not allowed' }, 405);
+    if (!configuration(env).voice) return json({ error: '音声サーバーの接続設定が必要です。' }, 503);
+    if (Number(request.headers.get('content-length')) > 5_760_044) return json({ error: '音声ファイルが大きすぎます。' }, 413);
+    try {
+      const target = new URL(env.MODAL_API_URL);
+      if (target.protocol !== 'https:') throw new Error('Invalid Modal URL');
+      target.pathname = settingsPath;
+      target.search = settingsPath === '/references' ? url.search : '';
+      const headers = new Headers({ Authorization: `Bearer ${env.MODAL_API_TOKEN}` });
+      for (const key of ['content-type', 'if-match']) if (request.headers.has(key)) headers.set(key, request.headers.get(key));
+      const response = await fetcher(target, { method: request.method, headers, body: request.body, signal: request.signal });
+      if (response.status >= 500) return json({ error: '設定を読み書きできませんでした。時間をおいて読み直してください。' }, 502);
+      return new Response(response.body, { status: response.status, headers: { 'Content-Type': response.headers.get('content-type') || 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+    } catch {
+      return json({ error: '音声サーバーへの接続に失敗しました。もう一度お試しください。' }, 502);
+    }
+  }
   const routes = { '/api/chat': 'POST', '/api/call/warm': 'POST', '/api/voice': 'GET', '/api/transcription': 'GET' };
   if (!routes[path]) return json({ error: 'Not found' }, 404);
   if (request.method !== routes[path]) return json({ error: 'Method not allowed' }, 405);
   const configured = configuration(env);
-  if (!configured.openai || (path !== '/api/chat' && !configured.voice)) {
+  if ((['/api/chat', '/api/transcription'].includes(path) && !configured.openai) || (path !== '/api/chat' && !configured.voice)) {
     return json({ error: '接続設定が完了していません。OpenAIと音声サーバーの設定が必要です。', configured }, 503);
   }
   try {

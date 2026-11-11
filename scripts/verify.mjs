@@ -11,7 +11,7 @@ if (existsSync('evidence/verification.json')) {
   for (const file of ['verification.json', ...prior.results.map(result => result.log)]) copyFileSync(`evidence/${file}`, `${archive}/${file}`);
 }
 const commands = [
-  [process.execPath, ['--test', 'tests/api.test.js', 'tests/core.test.js']],
+  [process.execPath, ['--test', ...readdirSync('tests').filter(file => file.endsWith('.test.js')).map(file => `tests/${file}`)]],
   ['uv', ['run', 'python', '-m', 'unittest', 'discover', '-s', 'tests', '-p', 'test_*.py', '-v']],
   ['uv', ['run', 'python', '-c', "import backend.modal_app; print('Modal app import: OK')"]],
   [process.execPath, ['node_modules/wrangler/bin/wrangler.js', 'deploy', '--dry-run', '--outdir', 'dist']],

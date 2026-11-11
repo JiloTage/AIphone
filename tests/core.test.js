@@ -4,6 +4,27 @@ import { PCMEncoder, VoiceActivity, pcmBase64 } from '../public/lib/audio-codec.
 import { readSSE } from '../public/lib/stream.js';
 import { conversationInput, readSessions, writeSessions } from '../public/lib/store.js';
 import { VoiceCall } from '../public/lib/call.js';
+import { encodeReferenceWav } from '../public/lib/reference-audio.js';
+
+test('reference WAV has a valid mono PCM16 header and clamps samples', async () => {
+  const samples = new Float32Array(12000);
+  samples.set([-2, -0.5, 0, 0.5, 2]);
+  const wav = encodeReferenceWav(samples);
+  const bytes = await wav.arrayBuffer(), view = new DataView(bytes);
+  assert.equal(wav.type, 'audio/wav');
+  assert.equal(new TextDecoder().decode(bytes.slice(0, 4)), 'RIFF');
+  assert.equal(view.getUint32(4, true), bytes.byteLength - 8);
+  assert.equal(view.getUint16(20, true), 1);
+  assert.equal(view.getUint16(22, true), 1);
+  assert.equal(view.getUint32(24, true), 24000);
+  assert.equal(view.getUint16(34, true), 16);
+  assert.equal(view.getUint32(40, true), 24000);
+  assert.deepEqual(Array.from({ length: 5 }, (_, i) => view.getInt16(44 + i * 2, true)), [-32768, -16384, 0, 16384, 32767]);
+  assert.throws(() => encodeReferenceWav(new Float32Array(11999)));
+  assert.throws(() => encodeReferenceWav(new Float32Array(2880001)));
+  samples[0] = NaN;
+  assert.throws(() => encodeReferenceWav(samples));
+});
 import { CallAudio } from '../public/lib/audio.js';
 
 for (const outcome of ['connected', 'cancelled', 'failed']) test(`call opening greeting: ${outcome}`, async t => {

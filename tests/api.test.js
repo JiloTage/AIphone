@@ -94,3 +94,35 @@ test('Realtime configuration selects minimal delay and client-side turn detectio
   assert.equal(session.session.audio.input.turn_detection, null);
   assert.deepEqual(session.session.audio.input.transcription.languages, ['ja']);
 });
+
+test('shared voice settings proxy preserves revision, strips caller credentials and private errors', async () => {
+  const req = new Request('https://aiphone.example/api/voice/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'If-Match': 'revision-one', Authorization: 'caller-secret' }, body: '{"options":{"speed":1.2},"reference_id":""}' });
+  const response = await handleRequest(req, { ...env, OPENAI_API_KEY: '' }, settings, async (url, init) => {
+    assert.equal(url.href, 'https://example.modal.run/settings');
+    assert.equal(init.method, 'PUT');
+    assert.equal(init.headers.get('if-match'), 'revision-one');
+    assert.equal(init.headers.get('authorization'), 'Bearer test-modal-secret');
+    assert.deepEqual(JSON.parse(await new Response(init.body).text()), { options: { speed: 1.2 }, reference_id: '' });
+    return Response.json({ error: 'Revision conflict' }, { status: 409 });
+  });
+  assert.equal(response.status, 409);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  const failure = await handleRequest(new Request('https://aiphone.example/api/voice/settings'), env, settings, async () => new Response('private path and secret', { status: 500 }));
+  assert.equal(failure.status, 502);
+  assert.ok(!(await failure.text()).includes('secret'));
+});
+
+test('reference proxy only accepts registered routes and bounded same-origin uploads', async () => {
+  const invalid = new Request('https://aiphone.example/api/voice/references/not-an-id');
+  assert.equal((await handleRequest(invalid, env, settings)).status, 404);
+  assert.equal((await handleRequest(request('/api/voice/references', {}, 'https://elsewhere.example'), env, settings)).status, 403);
+  const large = new Request('https://aiphone.example/api/voice/references', { method: 'POST', headers: { 'Content-Length': '5760045' } });
+  assert.equal((await handleRequest(large, env, settings)).status, 413);
+  const get = new Request('https://aiphone.example/api/voice/references/' + 'a'.repeat(32));
+  const audio = await handleRequest(get, env, settings, async (url) => {
+    assert.equal(url.pathname, '/references/' + 'a'.repeat(32));
+    return new Response(new Uint8Array([0, 1, 2]), { headers: { 'Content-Type': 'audio/wav' } });
+  });
+  assert.equal(audio.headers.get('content-type'), 'audio/wav');
+  assert.deepEqual(Array.from(new Uint8Array(await audio.arrayBuffer())), [0, 1, 2]);
+});
