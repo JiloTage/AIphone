@@ -21,12 +21,12 @@ image = (
         f"git -C /opt/speech checkout {SPEECH_REV}",
         "git -C /opt/speech submodule update --init --recursive",
         "cmake -S /opt/speech -B /opt/speech/build -DCMAKE_BUILD_TYPE=Release "
-        "-DGGML_CUDA=ON -DGGML_NATIVE=OFF -DCMAKE_CUDA_ARCHITECTURES=89",
+        "-DGGML_CUDA=ON -DGGML_NATIVE=OFF -DCMAKE_CUDA_ARCHITECTURES=75",
         "cmake --build /opt/speech/build --target speech -j 4",
     )
     .run_commands("cmake --build /opt/speech/build --target speech-cli -j 4")
     .env({"SPEECH_MODEL_DIR": "/opt/models", "SPEECH_NO_UPDATE_CHECK": "1"})
-    .run_commands(f"/opt/speech/build/speech pull {VOICE['model']}", gpu="L4")
+    .run_commands(f"/opt/speech/build/speech pull {VOICE['model']}", gpu="T4")
     .add_local_dir(ROOT / "backend", "/app/backend", ignore=["__pycache__", "*.pyc"])
     .add_local_dir(ROOT / "config", "/app/config")
     .add_local_dir(ROOT / "prompts", "/app/prompts")
@@ -36,7 +36,7 @@ app = modal.App("voice-chat-example", image=image)
 
 
 @app.cls(
-    gpu=["L4", "L40S"], cpu=(1, 4), memory=8192,
+    gpu="T4", cpu=(1, 4), memory=8192,
     min_containers=0, max_containers=1, scaledown_window=120,
     timeout=86400,
     secrets=[modal.Secret.from_name("voice-chat-example")],
