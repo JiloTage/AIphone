@@ -147,8 +147,6 @@ export class VoiceCall {
     const wasActive = this.vad.active;
     const event = this.vad.update(rms);
     if (event === 'start') {
-      this.callbacks.interrupt();
-      this.cancelSpeech();
       this.state('listening', '聞いています', '話し終わると、AIが応答します');
       for (const buffered of this.preRoll) this.appendAudio(buffered);
     } else if (wasActive) this.appendAudio(frame);
@@ -166,6 +164,13 @@ export class VoiceCall {
     this.transcription.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: pcmBase64(frame) }));
   }
   onTranscript(data) {
+    const recognized = data.type === 'conversation.item.input_audio_transcription.delta' ? data.delta
+      : data.type === 'conversation.item.input_audio_transcription.completed' ? data.transcript : '';
+    // Stop only when words are recognized; short noises may be discarded by VAD.
+    if (recognized?.trim() && !this.partial.get(data.item_id)?.trim()) {
+      this.callbacks.interrupt();
+      this.cancelSpeech();
+    }
     if (data.type === 'input_audio_buffer.committed') {
       this.turnOrder.push(data.item_id);
     } else if (data.type === 'conversation.item.input_audio_transcription.delta') {

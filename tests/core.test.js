@@ -131,7 +131,7 @@ test('chat context stays bounded and never adds a system role from history', () 
 
 test('transcription completion is reconciled by committed turn order', () => {
   const result = [];
-  const call = new VoiceCall({ transcript: text => result.push(text), partial: () => {}, error: () => {} });
+  const call = new VoiceCall({ transcript: text => result.push(text), partial: () => {}, error: () => {}, interrupt: () => {} });
   call.onTranscript({ type: 'input_audio_buffer.committed', item_id: 'first' });
   call.onTranscript({ type: 'input_audio_buffer.committed', item_id: 'second' });
   call.onTranscript({ type: 'conversation.item.input_audio_transcription.completed', item_id: 'second', transcript: '二つ目' });
@@ -143,7 +143,7 @@ test('transcription completion is reconciled by committed turn order', () => {
 
 test('failed transcription releases later completed turns', () => {
   const result = [];
-  const call = new VoiceCall({ transcript: text => result.push(text), partial: () => {}, error: () => {} });
+  const call = new VoiceCall({ transcript: text => result.push(text), partial: () => {}, error: () => {}, interrupt: () => {} });
   call.onTranscript({ type: 'input_audio_buffer.committed', item_id: 'first' });
   call.onTranscript({ type: 'input_audio_buffer.committed', item_id: 'second' });
   call.onTranscript({ type: 'conversation.item.input_audio_transcription.completed', item_id: 'second', transcript: '続き' });
