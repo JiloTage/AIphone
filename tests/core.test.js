@@ -27,7 +27,7 @@ test('reference WAV has a valid mono PCM16 header and clamps samples', async () 
 });
 import { CallAudio } from '../public/lib/audio.js';
 
-for (const outcome of ['connected', 'cancelled', 'failed']) test(`call opening greeting: ${outcome}`, async t => {
+for (const outcome of ['connected', 'cancelled', 'failed', 'empty']) test(`call opening greeting: ${outcome}`, async t => {
   t.mock.method(globalThis, 'setInterval', () => 1);
   t.mock.method(globalThis, 'clearInterval', () => {});
   for (const [object, key, value] of [
@@ -41,10 +41,10 @@ for (const outcome of ['connected', 'cancelled', 'failed']) test(`call opening g
   }
   for (const method of ['resume', 'microphone', 'ring', 'stopRing', 'close']) t.mock.method(CallAudio.prototype, method, async () => {});
   const sent = [], history = [];
-  const call = new VoiceCall({ greeting: () => history.push('generate'), state() {}, partial() {}, ended() {} });
+  const call = new VoiceCall({ greeting: async () => { history.push('generate'); return outcome === 'empty' ? undefined : 'こんにちは'; }, state() {}, partial() {}, ended() {} });
   t.mock.method(call, 'connect', async () => {
     assert.equal(sent.length, 0);
-    assert.equal(history.length, 0);
+    assert.equal(history.length, 1);
     if (outcome === 'failed') throw new Error('connection failed');
     if (outcome === 'cancelled') call.stop();
     call.voice = { readyState: WebSocket.OPEN, send: data => sent.push(JSON.parse(data)) };
@@ -52,14 +52,18 @@ for (const outcome of ['connected', 'cancelled', 'failed']) test(`call opening g
   if (outcome === 'failed') await assert.rejects(call.start(), /connection failed/);
   else await call.start();
   if (outcome === 'connected') {
-    assert.deepEqual(sent, []);
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].text, 'こんにちは');
+    assert.equal(call.openingAudio, true);
+    assert.equal(call.startedAt, undefined);
     assert.deepEqual(history, ['generate']);
     call.becomeReady(); // Reconnection uses this path without starting another greeting.
-    assert.equal(sent.length, 0);
+    assert.equal(sent.length, 1);
     assert.equal(history.length, 1);
   } else {
     assert.deepEqual(sent, []);
-    assert.deepEqual(history, []);
+    assert.deepEqual(history, ['generate']);
+    if (outcome === 'empty') assert.equal(call.openingAudio, false);
   }
   call.stop();
 });

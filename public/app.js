@@ -126,7 +126,10 @@ async function sendMessage(text, opening = false) {
     }
     if (pending === task) {
       if (!finished) throw new Error('応答中に接続が途切れました。');
-      if (task.voice === call) call?.speak(message.content);
+      if (task.voice === call) {
+        if (opening) return message.content;
+        call?.speak(message.content);
+      }
     }
   } catch (error) {
     if (error.name !== 'AbortError') { message.state = error.message; if (pending === task) notice(error.message, true); }
@@ -144,7 +147,7 @@ async function beginCall() {
   notice('');
   ensureSession(); save();
   const voice = new VoiceCall({
-    greeting: () => { sendMessage('', true).catch(error => notice(error.message, true)); },
+    greeting: () => sendMessage('', true).catch(error => notice(error.message, true)),
     state: (state, title, detail) => {
       $('call-panel').dataset.state = state;
       $('call-status').textContent = title;
@@ -159,6 +162,7 @@ async function beginCall() {
     time: seconds => { $('call-time').textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`; },
     ended: () => {
       if (call !== voice) return;
+      stopResponse();
       call = null;
       $('call-panel').hidden = true;
       $('call-toggle').disabled = false;

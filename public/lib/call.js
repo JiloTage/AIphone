@@ -26,18 +26,24 @@ export class VoiceCall {
   async start() {
     if (!navigator.mediaDevices?.getUserMedia || !globalThis.AudioWorkletNode) throw new Error('このブラウザーでは音声通話を利用できません。最新版のChromeまたはSafariをお試しください。');
     this.active = true;
+    this.openingAudio = true;
     this.abort = new AbortController();
     try {
       this.audio = new CallAudio(frame => this.onFrame(frame));
       this.state('ringing', '呼び出しています…', '相手の応答を待っています');
       await this.audio.resume();
       this.audio.ring();
-      await Promise.all([this.audio.microphone(), this.connect()]);
+      const greeting = this.callbacks.greeting();
+      const connection = this.connect().then(() => {
+        if (!this.active) return;
+        console.info('[voice] opening-transport-ready');
+        this.ready = true;
+        this.clock = setInterval(() => this.tick(), 1000);
+      });
+      const [, , text] = await Promise.all([this.audio.microphone(), connection, greeting]);
       if (!this.active) return;
-      this.startedAt = Date.now();
-      this.becomeReady();
-      this.clock = setInterval(() => this.tick(), 1000);
-      this.callbacks.greeting();
+      if (text) this.speak(text);
+      else this.becomeReady();
     } catch (error) {
       this.stop();
       if (error.name === 'NotAllowedError') throw new Error('マイクの使用が許可されていません。ブラウザーの設定でマイクを許可してください。');
@@ -81,7 +87,14 @@ export class VoiceCall {
         ws.lastMessage = Date.now();
         if (!this.active) return;
         if (event.data instanceof ArrayBuffer) {
-          if (this.currentAudio && this.pendingAudio.has(this.currentAudio)) this.audio.play(event.data, this.sampleRate);
+          if (this.currentAudio && this.pendingAudio.has(this.currentAudio)) {
+            if (this.openingAudio) {
+              console.info('[voice] opening-audio-ready');
+              this.becomeReady();
+              this.state('speaking', 'AIが話しています', '話しかけると、応答を止められます');
+            }
+            this.audio.play(event.data, this.sampleRate);
+          }
           return;
         }
         let data;
@@ -89,7 +102,10 @@ export class VoiceCall {
         if (data.type === 'ready') { opened = true; clearTimeout(timeout); resolve(ws); return; }
         if (data.type === 'error') {
           if (!opened) { clearTimeout(timeout); reject(new Error(data.error?.message || data.message || '接続に失敗しました。')); ws.close(); return; }
-          if (kind === 'voice') this.pendingAudio.delete(data.id);
+          if (kind === 'voice') {
+            this.pendingAudio.delete(data.id);
+            if (this.openingAudio) this.becomeReady();
+          }
           this.callbacks.error(data.message || data.error?.message || '音声処理でエラーが発生しました。');
           if (kind === 'transcription') ws.close();
           return;
@@ -108,6 +124,8 @@ export class VoiceCall {
     });
   }
   becomeReady() {
+    this.openingAudio = false;
+    this.startedAt ??= Date.now();
     this.ready = true;
     this.audio.stopRing();
     this.vad.reset();
@@ -140,7 +158,7 @@ export class VoiceCall {
     this.reconnecting = false;
   }
   onFrame({ pcm, rms }) {
-    if (!this.ready || this.muted || this.transcription?.readyState !== WebSocket.OPEN) return;
+    if (!this.ready || this.openingAudio || this.muted || this.transcription?.readyState !== WebSocket.OPEN) return;
     const frame = new Int16Array(pcm);
     this.preRoll.push(frame);
     if (this.preRoll.length > 7) this.preRoll.shift();
@@ -195,8 +213,11 @@ export class VoiceCall {
     if (data.type === 'audio.start') {
       this.currentAudio = data.id;
       this.sampleRate = data.sample_rate;
-      if (this.pendingAudio.has(data.id)) this.state('speaking', 'AIが話しています', '話しかけると、応答を止められます');
-    } else if (data.type === 'audio.done') this.pendingAudio.delete(data.id);
+      if (!this.openingAudio && this.pendingAudio.has(data.id)) this.state('speaking', 'AIが話しています', '話しかけると、応答を止められます');
+    } else if (data.type === 'audio.done') {
+      this.pendingAudio.delete(data.id);
+      if (this.openingAudio) this.becomeReady();
+    }
     else if (data.type === 'audio.cancelled') this.currentAudio = null;
   }
   speak(text) {
@@ -212,7 +233,7 @@ export class VoiceCall {
     this.audio?.cancel();
     if (this.voice?.readyState === WebSocket.OPEN) this.voice.send('{"type":"cancel"}');
   }
-  thinking(value) { this.isThinking = value; if (value && this.ready) this.state('thinking', 'AIが考えています', 'そのままお待ちください'); }
+  thinking(value) { this.isThinking = value; if (value && this.ready && !this.openingAudio) this.state('thinking', 'AIが考えています', 'そのままお待ちください'); }
   toggleMute() {
     this.muted = !this.muted;
     this.audio.stream?.getAudioTracks().forEach(track => { track.enabled = !this.muted; });
@@ -233,7 +254,7 @@ export class VoiceCall {
         if (!this.lastPing || Date.now() - this.lastPing > 20_000) socket.send('{"type":"ping"}');
       }
       if (!this.lastPing || Date.now() - this.lastPing > 20_000) this.lastPing = Date.now();
-      if (!this.vad.active && !this.audio.playing && !this.pendingAudio.size && !this.isThinking) {
+      if (!this.openingAudio && !this.vad.active && !this.audio.playing && !this.pendingAudio.size && !this.isThinking) {
         this.state('listening', this.muted ? 'マイクはミュート中です' : 'お話しください', this.muted ? 'マイクのボタンで解除できます' : '声は自動で文字になります');
       }
     }
