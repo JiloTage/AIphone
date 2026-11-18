@@ -30,7 +30,7 @@ for (const outcome of ['new', 'history', 'interrupted', 'failed', 'normal']) tes
     },
   });
   vm.runInContext(sendMessage, context);
-  await context.sendMessage(outcome === 'normal' ? 'こんにちは' : '', outcome !== 'normal');
+  const prepared = await context.sendMessage(outcome === 'normal' ? 'こんにちは' : '', outcome !== 'normal');
   assert.equal(requests.length, 1);
   assert.equal(requests[0].url, '/api/chat');
   assert.deepEqual(requests[0].body.messages.slice(0, previous.length), previous);
@@ -40,10 +40,12 @@ for (const outcome of ['new', 'history', 'interrupted', 'failed', 'normal']) tes
     assert.match(requests[0].body.messages.at(-1).content, /あなたから自然に話しかけて/);
   }
   if (['failed', 'interrupted'].includes(outcome)) {
+    assert.equal(prepared, undefined);
     assert.deepEqual(spoken, []);
     assert.equal(messages.at(-1).content, '');
   } else {
-    assert.deepEqual(spoken, [generated]);
+    assert.deepEqual(spoken, outcome === 'normal' ? [generated] : []);
+    assert.equal(prepared, outcome === 'normal' ? undefined : generated);
     assert.equal(messages.at(-1).content, generated);
   }
 });
